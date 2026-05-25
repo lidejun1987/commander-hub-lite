@@ -1,0 +1,22 @@
+{
+  "_comment": "Reference example. Copy to data.json and customize. data.json is gitignored.",
+  "todos": [],
+  "memos": [],
+  "projects": [
+    {"id": "p_default", "name": "Default", "color": "#6c8eef"}
+  ],
+  "settings": {
+    "exportDir": "exports",
+    "timelineFilename": "{{date}}-timeline",
+    "dailyTemplate": "Daily/{{date}}",
+    "defaultPriority": "P2",
+    "backupRetentionDays": 30,
+    "showCompleted": true,
+    "compactMode": false,
+    "enableSmartParse": true
+  },
+  "sequence": {
+    "todoCounter": 0,
+    "memoCounter": 0
+  }
+}

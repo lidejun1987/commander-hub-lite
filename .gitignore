@@ -1,0 +1,21 @@
+# Obsidian per-vault user data — NEVER commit
+data.json
+data.json.bak*
+backup/
+
+# IDE / OS
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Node (if you later add a build step)
+node_modules/
+.npm
+.eslintcache
+
+# Local logs
+*.log
+debug.log

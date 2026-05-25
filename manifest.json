@@ -1,0 +1,15 @@
+{
+  "id": "commander-hub",
+  "name": "Commander Hub Lite",
+  "version": "3.4.3",
+  "minAppVersion": "0.15.0",
+  "description": "Central command panel: project tabs, smart parsing, priority, search filter, Daily-note integration, auto-backup, stats.",
+  "author": "lidejun1987",
+  "authorUrl": "https://github.com/lidejun1987",
+  "fundingUrl": {
+    "Afdian (爱发电)": "https://afdian.com/a/lidejun1987",
+    "WeChat / Alipay (赞赏页)": "https://github.com/lidejun1987/commander-hub-lite/blob/main/SPONSORS.md",
+    "GitHub Sponsors": "https://github.com/sponsors/lidejun1987"
+  },
+  "isDesktopOnly": true
+}
