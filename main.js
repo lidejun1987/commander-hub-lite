@@ -682,8 +682,8 @@ class CommanderHubView extends obsidian.ItemView {
         const smartHint = this.plugin.settings.config.smartParse
             ? "支持智能解析：明天 19:00 公司例会 P0 #会议 @项目名"
             : "输入任务（支持 #标签）";
-        const tInput = root.createEl("textarea", { cls: "commander-input auto-grow", attr: { placeholder: smartHint, rows: "1" } });
-        const tFit = autoGrowTextarea(tInput, { min: 40, max: 320 }, this);
+        const tInput = root.createEl("textarea", { cls: "commander-input auto-grow", attr: { placeholder: smartHint, rows: "2" } });
+        const tFit = autoGrowTextarea(tInput, { min: 60, max: 320 }, this);
 
         // 智能解析预览
         const previewBox = root.createDiv({ cls: "smart-preview" });
