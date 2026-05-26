@@ -56,10 +56,13 @@ function autoGrowTextarea(el, opts = {}, component = null) {
     el.style.setProperty("max-height", max + "px", "important");
 
     const fit = () => {
-        // 关键：先把高度清成 0，再读 scrollHeight 才能拿到准确的内容高度
-        el.style.setProperty("height", "0px", "important");
+        // 关键：先解除 min-height 约束 + 设 height auto，让 scrollHeight 反映真实内容高度
+        // （否则删除内容后 scrollHeight 会被 min-height 兜住，无法缩回）
+        el.style.setProperty("min-height", "0", "important");
+        el.style.setProperty("height", "auto", "important");
         const sh = el.scrollHeight;
         const target = Math.min(Math.max(sh, min), max);
+        el.style.setProperty("min-height", min + "px", "important");
         el.style.setProperty("height", target + "px", "important");
         el.style.setProperty("overflow-y", sh > max ? "auto" : "hidden", "important");
     };
