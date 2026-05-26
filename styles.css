@@ -152,3 +152,21 @@
 .project-count { color: var(--text-muted); font-size: 0.78rem; margin-left: auto; }
 .mini-btn.danger { color: #ff5555; }
 .mini-btn.danger:hover { background: #ff5555; color: white; }
+
+/* ===== 备忘按日折叠 ===== */
+.memo-date-header {
+    display: flex; align-items: center; gap: 6px;
+    padding: 6px 8px; margin: 8px 0 4px;
+    background: var(--background-secondary);
+    border-radius: 4px;
+    cursor: pointer;
+    user-select: none;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    transition: background 0.12s ease;
+}
+.memo-date-header:hover { background: var(--background-modifier-hover); color: var(--text-normal); }
+.memo-date-header.collapsed { opacity: 0.75; }
+.memo-fold-arrow { font-size: 0.7rem; width: 10px; display: inline-block; flex-shrink: 0; }
+.memo-date-label { font-weight: 600; color: var(--text-normal); }
+.memo-date-count { color: var(--text-muted); font-size: 0.78rem; }

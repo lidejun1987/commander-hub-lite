@@ -42,6 +42,32 @@ function nowStr() {
 function pad(n) { return String(n).padStart(2, '0'); }
 function isoDate(d) { return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; }
 
+// 从 memo.time（toLocaleString 输出）解析出 yyyy-mm-dd 日期键
+function memoDateKey(m) {
+    if (!m || !m.time) return todayStr();
+    const head = String(m.time).split(/[\s,]+/)[0];
+    const parts = head.split(/[\/\-]/).map(Number);
+    if (parts.length !== 3 || parts.some(Number.isNaN)) return todayStr();
+    let y, mo, d;
+    if (parts[0] > 31) { [y, mo, d] = parts; }   // YYYY/M/D 或 YYYY-M-D
+    else { [mo, d, y] = parts; }                 // M/D/YYYY (en-US)
+    if (!y || !mo || !d) return todayStr();
+    return `${y}-${pad(mo)}-${pad(d)}`;
+}
+
+// 把 yyyy-mm-dd 渲染为友好标签，标识今天/昨天 + 星期
+function formatDateLabel(dateKey) {
+    const today = todayStr();
+    const d = new Date(dateKey + "T00:00:00");
+    if (Number.isNaN(d.getTime())) return dateKey;
+    const weekDay = ["周日","周一","周二","周三","周四","周五","周六"][d.getDay()];
+    if (dateKey === today) return `今天 ${dateKey} ${weekDay}`;
+    const yest = new Date();
+    yest.setDate(yest.getDate() - 1);
+    if (dateKey === isoDate(yest)) return `昨天 ${dateKey} ${weekDay}`;
+    return `${dateKey} ${weekDay}`;
+}
+
 // 让 textarea 根据内容自动撑高（min~max 之间），超过 max 出滚动条
 // component 参数可选，传入则用 registerDomEvent 让 Obsidian 自动清理事件监听
 function autoGrowTextarea(el, opts = {}, component = null) {
@@ -616,6 +642,8 @@ class CommanderHubView extends obsidian.ItemView {
         super(leaf);
         this.plugin = plugin;
         this.filter = { keyword: "", priority: "all", tag: "all", status: "all" };
+        // 备忘按日折叠：保存被折叠的日期键（yyyy-mm-dd）
+        this.collapsedMemoDays = new Set();
     }
     getViewType() { return VIEW_TYPE; }
     getDisplayText() { return "指挥官枢纽 全能版"; }
@@ -1019,48 +1047,73 @@ class CommanderHubView extends obsidian.ItemView {
             .map((item, idx) => ({ item, idx }))
             .filter(x => this.matchFilter(x.item, true));
         if (!list.length) { parent.createDiv({ text: "（无匹配备忘）", cls: "empty-hint" }); return; }
-        list.forEach(({ item, idx }) => {
-            const card = parent.createDiv({ cls: "commander-card memo-card" });
-            const info = card.createDiv({ cls: "task-info-wrapper" });
-            // 序号徽章（独立一行块顶）
-            if (typeof item.seq === "number") {
-                info.createEl("span", { text: `M${item.seq}`, cls: "seq-badge memo-seq", title: "添加序号（永久唯一）" });
-            }
-            const contentDisplay = info.createDiv({ cls: "content-text", text: item.content });
-            this.setupEditable(contentDisplay, info, item, "content", async () => {
-                // 双击编辑后重新解析（智能解析开启时会更新项目+标签）
-                if (this.plugin.settings.config.smartParse) {
-                    const parsed = smartParseMemo(item.content, this.plugin.settings);
-                    if (parsed.projectId) item.projectId = parsed.projectId;
-                    item.tags = parsed.tags.length ? parsed.tags : extractTags(item.content);
-                } else {
-                    item.tags = extractTags(item.content);
-                }
-                await this.plugin.saveSettings();
-            });
-            const meta = info.createDiv({ cls: "meta-row" });
-            meta.createEl("span", { cls: "meta-time", text: `🕒 ${item.time}` });
-            // 项目徽章
-            const proj = item.projectId ? this.plugin.settings.projects.find(p => p.id === item.projectId) : null;
-            if (proj) {
-                const pBadge = meta.createEl("span", { text: `@${proj.name}`, cls: "proj-badge" });
-                pBadge.style.backgroundColor = proj.color;
-                pBadge.onclick = (e) => { e.stopPropagation(); this.cycleProject(item); };
-            } else {
-                const pBadge = meta.createEl("span", { text: "@无", cls: "proj-badge proj-empty" });
-                pBadge.onclick = (e) => { e.stopPropagation(); this.cycleProject(item); };
-            }
-            (item.tags || []).forEach(tg => meta.createEl("span", { text: `#${tg}`, cls: "tag-chip" }));
-            const toDailyBtn = info.createEl("button", { text: "📤 → Daily", cls: "mini-btn" });
-            toDailyBtn.onclick = () => this.plugin.appendMemoToDaily(item);
-            const del = card.createEl("button", { text: "✕", cls: "close-btn" });
-            del.onclick = () => {
-                new ConfirmModal(this.app, `备忘："${item.content.slice(0,30)}${item.content.length>30?'...':''}"`, async () => {
-                    await this.plugin.backupNow(false);
-                    this.plugin.settings.memos.splice(idx, 1);
-                    await this.plugin.saveSettings();
-                }).open();
+
+        // 按日期分组（保持原始顺序在组内）
+        const groups = new Map();
+        list.forEach(entry => {
+            const key = memoDateKey(entry.item);
+            if (!groups.has(key)) groups.set(key, []);
+            groups.get(key).push(entry);
+        });
+        // 日期降序：今天在最上
+        const sortedKeys = [...groups.keys()].sort((a, b) => b.localeCompare(a));
+
+        sortedKeys.forEach(dateKey => {
+            const entries = groups.get(dateKey);
+            const isCollapsed = this.collapsedMemoDays.has(dateKey);
+
+            const header = parent.createDiv({ cls: `memo-date-header${isCollapsed ? " collapsed" : ""}` });
+            header.createEl("span", { text: isCollapsed ? "▶" : "▼", cls: "memo-fold-arrow" });
+            header.createEl("span", { text: ` ${formatDateLabel(dateKey)} `, cls: "memo-date-label" });
+            header.createEl("span", { text: `(${entries.length})`, cls: "memo-date-count" });
+            header.onclick = () => {
+                if (isCollapsed) this.collapsedMemoDays.delete(dateKey);
+                else this.collapsedMemoDays.add(dateKey);
+                this.refreshLists();
             };
+
+            if (isCollapsed) return;
+
+            entries.forEach(({ item, idx }) => {
+                const card = parent.createDiv({ cls: "commander-card memo-card" });
+                const info = card.createDiv({ cls: "task-info-wrapper" });
+                if (typeof item.seq === "number") {
+                    info.createEl("span", { text: `M${item.seq}`, cls: "seq-badge memo-seq", title: "添加序号（永久唯一）" });
+                }
+                const contentDisplay = info.createDiv({ cls: "content-text", text: item.content });
+                this.setupEditable(contentDisplay, info, item, "content", async () => {
+                    if (this.plugin.settings.config.smartParse) {
+                        const parsed = smartParseMemo(item.content, this.plugin.settings);
+                        if (parsed.projectId) item.projectId = parsed.projectId;
+                        item.tags = parsed.tags.length ? parsed.tags : extractTags(item.content);
+                    } else {
+                        item.tags = extractTags(item.content);
+                    }
+                    await this.plugin.saveSettings();
+                });
+                const meta = info.createDiv({ cls: "meta-row" });
+                meta.createEl("span", { cls: "meta-time", text: `🕒 ${item.time}` });
+                const proj = item.projectId ? this.plugin.settings.projects.find(p => p.id === item.projectId) : null;
+                if (proj) {
+                    const pBadge = meta.createEl("span", { text: `@${proj.name}`, cls: "proj-badge" });
+                    pBadge.style.backgroundColor = proj.color;
+                    pBadge.onclick = (e) => { e.stopPropagation(); this.cycleProject(item); };
+                } else {
+                    const pBadge = meta.createEl("span", { text: "@无", cls: "proj-badge proj-empty" });
+                    pBadge.onclick = (e) => { e.stopPropagation(); this.cycleProject(item); };
+                }
+                (item.tags || []).forEach(tg => meta.createEl("span", { text: `#${tg}`, cls: "tag-chip" }));
+                const toDailyBtn = info.createEl("button", { text: "📤 → Daily", cls: "mini-btn" });
+                toDailyBtn.onclick = () => this.plugin.appendMemoToDaily(item);
+                const del = card.createEl("button", { text: "✕", cls: "close-btn" });
+                del.onclick = () => {
+                    new ConfirmModal(this.app, `备忘："${item.content.slice(0,30)}${item.content.length>30?'...':''}"`, async () => {
+                        await this.plugin.backupNow(false);
+                        this.plugin.settings.memos.splice(idx, 1);
+                        await this.plugin.saveSettings();
+                    }).open();
+                };
+            });
         });
     }
 
