@@ -43,7 +43,8 @@ function pad(n) { return String(n).padStart(2, '0'); }
 function isoDate(d) { return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; }
 
 // 让 textarea 根据内容自动撑高（min~max 之间），超过 max 出滚动条
-function autoGrowTextarea(el, opts = {}) {
+// component 参数可选，传入则用 registerDomEvent 让 Obsidian 自动清理事件监听
+function autoGrowTextarea(el, opts = {}, component = null) {
     const min = opts.min || 40;
     const max = opts.max || 320;
     // 强制覆盖外部 CSS（防 resize/height 被主题压住）
@@ -62,10 +63,19 @@ function autoGrowTextarea(el, opts = {}) {
         el.style.setProperty("height", target + "px", "important");
         el.style.setProperty("overflow-y", sh > max ? "auto" : "hidden", "important");
     };
-    el.addEventListener("input", fit);
-    el.addEventListener("change", fit);
-    el.addEventListener("focus", fit);
-    el.addEventListener("paste", () => requestAnimationFrame(fit));
+    const onPaste = () => requestAnimationFrame(fit);
+    if (component && typeof component.registerDomEvent === "function") {
+        component.registerDomEvent(el, "input", fit);
+        component.registerDomEvent(el, "change", fit);
+        component.registerDomEvent(el, "focus", fit);
+        component.registerDomEvent(el, "paste", onPaste);
+    } else {
+        // Fallback：textarea 销毁时 listener 会随 DOM 一起 GC
+        el.addEventListener("input", fit);
+        el.addEventListener("change", fit);
+        el.addEventListener("focus", fit);
+        el.addEventListener("paste", onPaste);
+    }
     // 初始执行 + 下一帧再执行一次（确保 DOM/CSS 稳定后量得到准确高度）
     fit();
     if (typeof requestAnimationFrame === "function") {
@@ -73,7 +83,6 @@ function autoGrowTextarea(el, opts = {}) {
     } else {
         setTimeout(fit, 16);
     }
-    // 暴露给控制台诊断：document.querySelectorAll('.auto-grow').forEach(e=>console.log(e._cmdFit && e._cmdFit()));
     el._cmdFit = fit;
     return fit;
 }
@@ -290,15 +299,13 @@ module.exports = class CommanderHubPlugin extends obsidian.Plugin {
         this.addRibbonIcon("commander-hub-cp", "指挥官枢纽", () => this.activateView());
 
         // 命令面板
-        this.addCommand({ id: "open-commander-hub", name: "打开指挥官枢纽", callback: () => this.activateView() });
-        this.addCommand({ id: "export-commander-hub", name: "导出指挥官枢纽到 Markdown", callback: () => this.exportToMarkdown() });
+        this.addCommand({ id: "open", name: "打开指挥官枢纽", callback: () => this.activateView() });
+        this.addCommand({ id: "export", name: "导出指挥官枢纽到 Markdown", callback: () => this.exportToMarkdown() });
         this.addCommand({ id: "import-from-daily", name: "从今日 Daily 导入待办", callback: () => this.importFromDaily() });
-        this.addCommand({ id: "backup-commander-hub", name: "立即备份数据", callback: () => this.backupNow(true) });
+        this.addCommand({ id: "backup", name: "立即备份数据", callback: () => this.backupNow(true) });
 
         // 添加设置面板
         this.addSettingTab(new CommanderHubSettingTab(this.app, this));
-
-        console.log(`[Commander Hub] v${PLUGIN_VERSION} loaded`);
     }
 
     async saveSettings(refresh = true) {
@@ -673,7 +680,7 @@ class CommanderHubView extends obsidian.ItemView {
             ? "支持智能解析：明天 19:00 公司例会 P0 #会议 @项目名"
             : "输入任务（支持 #标签）";
         const tInput = root.createEl("textarea", { cls: "commander-input auto-grow", attr: { placeholder: smartHint, rows: "1" } });
-        const tFit = autoGrowTextarea(tInput, { min: 40, max: 320 });
+        const tFit = autoGrowTextarea(tInput, { min: 40, max: 320 }, this);
 
         // 智能解析预览
         const previewBox = root.createDiv({ cls: "smart-preview" });
@@ -747,7 +754,7 @@ class CommanderHubView extends obsidian.ItemView {
             ? "支持智能解析：@项目名 #标签 自动归类（原文保留）"
             : "输入备忘内容...";
         const mInput = root.createEl("textarea", { cls: "commander-input auto-grow", attr: { placeholder: memoHint, rows: "2" } });
-        const mFit = autoGrowTextarea(mInput, { min: 60, max: 400 });
+        const mFit = autoGrowTextarea(mInput, { min: 60, max: 400 }, this);
 
         // 备忘智能解析预览
         const memoPreview = root.createDiv({ cls: "smart-preview" });
@@ -1060,7 +1067,7 @@ class CommanderHubView extends obsidian.ItemView {
             const orig = item[field];
             const editField = parent.createEl("textarea", { cls: "edit-textarea auto-grow" });
             editField.value = orig;
-            autoGrowTextarea(editField, { min: 36, max: 480 });
+            autoGrowTextarea(editField, { min: 36, max: 480 }, this);
             displayEl.hide();
             editField.focus();
             editField.setSelectionRange(orig.length, orig.length);
@@ -1241,7 +1248,6 @@ class CommanderHubSettingTab extends obsidian.PluginSettingTab {
     display() {
         const { containerEl } = this;
         containerEl.empty();
-        containerEl.createEl("h2", { text: "Commander Hub Lite 设置" });
         const cfg = this.plugin.settings.config;
 
         new obsidian.Setting(containerEl)
@@ -1287,7 +1293,7 @@ class CommanderHubSettingTab extends obsidian.PluginSettingTab {
             .addToggle(t => t.setValue(cfg.smartParse).onChange(async v => { cfg.smartParse = v; await this.plugin.saveSettings(); }));
 
         // ============ 项目管理 ============
-        containerEl.createEl("h3", { text: "📂 项目管理" });
+        new obsidian.Setting(containerEl).setName("📂 项目管理").setHeading();
         const projWrap = containerEl.createDiv({ cls: "project-mgmt" });
         if (!this.plugin.settings.projects.length) {
             projWrap.createEl("p", { text: "（暂无项目，点击下方按钮创建）", cls: "empty-hint" });
@@ -1336,7 +1342,7 @@ class CommanderHubSettingTab extends obsidian.PluginSettingTab {
                 this.display();
             }));
 
-        containerEl.createEl("h3", { text: "🔧 维护操作" });
+        new obsidian.Setting(containerEl).setName("🔧 维护操作").setHeading();
 
         new obsidian.Setting(containerEl)
             .setName("立即备份")

@@ -28,7 +28,7 @@ A lightweight task & memo hub for people who juggle multiple projects in a singl
 #### Manual install
 
 1. Download `main.js`, `manifest.json`, `styles.css` from the latest release
-2. Place them under `<your-vault>/.obsidian/plugins/commander-hub/`
+2. Place them under `<your-vault>/.obsidian/plugins/commander-hub-lite/`
 3. Reload Obsidian → enable in **Settings → Community plugins**
 
 ### Commands
@@ -74,9 +74,9 @@ Recognized:
 
 ### Data & privacy
 
-- All data lives in your vault under `.obsidian/plugins/commander-hub/data.json`
+- All data lives in your vault under `.obsidian/plugins/commander-hub-lite/data.json`
 - The plugin does **not** make any network requests
-- Backups are written under `.obsidian/plugins/commander-hub/backup/`
+- Backups are written under `.obsidian/plugins/commander-hub-lite/backup/`
 - `data.json` and `backup/` are listed in `.gitignore` and never get committed when you fork this repo
 
 ### License
@@ -114,13 +114,13 @@ Issues and PRs welcome. Please don't include your real `data.json` or any person
 
 ### 安装
 
-下载 release 中的 `main.js`、`manifest.json`、`styles.css`，放到 `<你的vault>/.obsidian/plugins/commander-hub/`，然后在 Obsidian 设置 → 第三方插件中启用。
+下载 release 中的 `main.js`、`manifest.json`、`styles.css`，放到 `<你的vault>/.obsidian/plugins/commander-hub-lite/`，然后在 Obsidian 设置 → 第三方插件中启用。
 
 ### 隐私
 
-- 所有数据存在 `.obsidian/plugins/commander-hub/data.json`
+- 所有数据存在 `.obsidian/plugins/commander-hub-lite/data.json`
 - 插件**完全不联网**
-- 备份在 `.obsidian/plugins/commander-hub/backup/`
+- 备份在 `.obsidian/plugins/commander-hub-lite/backup/`
 - `data.json` 和 `backup/` 已加入 `.gitignore`，fork 仓库时不会被带走
 
 ### License
